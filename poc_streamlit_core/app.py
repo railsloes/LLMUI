@@ -66,4 +66,16 @@ def render_ui(spec):
         except Exception as e:
             st.error(f"Error rendering component (key={key}, type={comp_type}): {e}")
 
-# (Rest of the app logic will go here)
+# --- Test UI Rendering (Task 3 Testing) ---
+
+st.divider()
+st.header("Test: Text View UI")
+render_ui(TEXT_SPEC)
+
+st.divider()
+st.header("Test: Form View UI")
+render_ui(FORM_SPEC)
+
+st.divider()
+st.header("Test: Chat View UI")
+render_ui(CHAT_SPEC)
