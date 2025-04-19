@@ -94,17 +94,16 @@ st.sidebar.header("Change View")
 
 if st.sidebar.button("Show Text", key="nav_text_btn"):
     st.session_state['current_view'] = 'text'
-    # Optional: Immediately rerun to reflect change if needed,
-    # though Streamlit usually handles rerun on button click.
-    # st.rerun()
+    # Immediately rerun to reflect change
+    st.rerun()
 
 if st.sidebar.button("Show Form", key="nav_form_btn"):
     st.session_state['current_view'] = 'form'
-    # st.rerun()
+    st.rerun()
 
 if st.sidebar.button("Show Chat", key="nav_chat_btn"):
     st.session_state['current_view'] = 'chat'
-    # st.rerun()
+    st.rerun()
 
 # Optional: Display session state for debugging
 st.divider()
