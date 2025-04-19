@@ -89,10 +89,22 @@ st.header(f"Current View: {st.session_state['current_view'].capitalize()}")
 st.divider()
 render_ui(spec_to_render)
 
-# Add view switching buttons (Task 5 will place them properly)
-st.divider()
-st.subheader("View Navigation (Placeholder Location)")
-# (Button logic will go here in Task 5)
+# --- View Navigation Buttons (in Sidebar) ---
+st.sidebar.header("Change View")
+
+if st.sidebar.button("Show Text", key="nav_text_btn"):
+    st.session_state['current_view'] = 'text'
+    # Optional: Immediately rerun to reflect change if needed,
+    # though Streamlit usually handles rerun on button click.
+    # st.rerun()
+
+if st.sidebar.button("Show Form", key="nav_form_btn"):
+    st.session_state['current_view'] = 'form'
+    # st.rerun()
+
+if st.sidebar.button("Show Chat", key="nav_chat_btn"):
+    st.session_state['current_view'] = 'chat'
+    # st.rerun()
 
 # Optional: Display session state for debugging
 st.divider()
