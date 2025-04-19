@@ -66,16 +66,35 @@ def render_ui(spec):
         except Exception as e:
             st.error(f"Error rendering component (key={key}, type={comp_type}): {e}")
 
-# --- Test UI Rendering (Task 3 Testing) ---
+# --- State Management and Main Rendering Logic ---
 
-st.divider()
-st.header("Test: Text View UI")
-render_ui(TEXT_SPEC)
+# Initialize session state for the current view if it doesn't exist
+if 'current_view' not in st.session_state:
+    st.session_state['current_view'] = 'text' # Default view
 
-st.divider()
-st.header("Test: Form View UI")
-render_ui(FORM_SPEC)
+# Determine which spec to render based on the current state
+if st.session_state['current_view'] == 'text':
+    spec_to_render = TEXT_SPEC
+elif st.session_state['current_view'] == 'form':
+    spec_to_render = FORM_SPEC
+elif st.session_state['current_view'] == 'chat':
+    spec_to_render = CHAT_SPEC
+else:
+    # Fallback or error case
+    st.error(f"Unknown view state: {st.session_state['current_view']}")
+    spec_to_render = [{"component": "markdown", "text": "**Error:** Invalid view state."}]
 
+# Render the selected UI specification
+st.header(f"Current View: {st.session_state['current_view'].capitalize()}")
 st.divider()
-st.header("Test: Chat View UI")
-render_ui(CHAT_SPEC)
+render_ui(spec_to_render)
+
+# Add view switching buttons (Task 5 will place them properly)
+st.divider()
+st.subheader("View Navigation (Placeholder Location)")
+# (Button logic will go here in Task 5)
+
+# Optional: Display session state for debugging
+st.divider()
+with st.expander("Show Session State (Debug)"):
+    st.json(dict(st.session_state))
