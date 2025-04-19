@@ -24,4 +24,46 @@ CHAT_SPEC = [
     {"component": "chat_message", "role": "assistant", "text": "Hello User! How can I help?"}
 ]
 
+# --- UI Rendering Function ---
+
+def render_ui(spec):
+    """Renders Streamlit UI elements based on a list-of-dicts specification."""
+    if not isinstance(spec, list):
+        st.error("Invalid UI specification format: Expected a list.")
+        return
+
+    for item in spec:
+        if not isinstance(item, dict):
+            st.warning("Skipping invalid item in UI spec (not a dict).")
+            continue
+
+        comp_type = item.get("component")
+        key = item.get("key") # Pass key to interactive elements
+
+        try:
+            if comp_type == "markdown":
+                st.markdown(item.get("text", ""), unsafe_allow_html=False)
+            elif comp_type == "text_input":
+                # Get optional 'type' (default is 'default')
+                input_type = item.get("type", "default")
+                st.text_input(
+                    label=item.get("label", ""),
+                    key=key,
+                    help=item.get("help"),
+                    type=input_type # Pass type (e.g., 'default', 'password')
+                )
+            elif comp_type == "button":
+                st.button(label=item.get("label", "Button"), key=key)
+            elif comp_type == "chat_message":
+                role = item.get("role", "assistant")
+                avatar = item.get("avatar")
+                with st.chat_message(name=role, avatar=avatar):
+                    st.markdown(item.get("text", ""))
+            # Add elif for other components like title, selectbox, metric, columns later if needed
+            elif comp_type: # Only warn if component type was specified but not matched
+                st.warning(f"Unsupported component type: '{comp_type}' for key '{key}'.")
+
+        except Exception as e:
+            st.error(f"Error rendering component (key={key}, type={comp_type}): {e}")
+
 # (Rest of the app logic will go here)
