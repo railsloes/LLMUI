@@ -52,26 +52,26 @@ st.set_page_config(layout="wide") # Optional: Use wider layout
 st.title("PoC: Streamlit Dynamic UI Core")
 st.markdown("Initial application structure.")
 
-# --- Define Service URL ---
-SPEC_SERVICE_URL = "http://localhost:5001/get_spec"
+# --- Define Remote Agent Simulation URL ---
+REMOTE_AGENT_URL = "http://localhost:5001/get_spec"
 
 # --- Function to Fetch Spec from Service ---
 @st.cache_data(ttl=10) # Cache for 10 seconds to avoid spamming the service
 def fetch_spec_from_service(version: str):
-    """Fetches the UI specification from the local service."""
+    """Fetches the UI specification from the remote agent simulation."""
     try:
-        url = f"{SPEC_SERVICE_URL}/{version}"
+        url = f"{REMOTE_AGENT_URL}/{version}"
         response = requests.get(url, timeout=5) # Added timeout
         response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
         spec = response.json()
         print(f"Successfully fetched spec for version {version} from {url}")
         return spec
     except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching spec from service at {url}: {e}")
-        print(f"Error fetching spec from service at {url}: {e}")
+        st.error(f"Error fetching spec from remote agent at {url}: {e}")
+        print(f"Error fetching spec from remote agent at {url}: {e}")
         # Return a minimal fallback spec or an empty list
         return [
-            {"type": "markdown", "text": f"## Error\n\nCould not connect to the specification service at `{url}`. Please ensure it's running.\n\n**Error details:** {e}"}
+            {"type": "markdown", "text": f"## Error\n\nCould not connect to the remote agent simulation at `{url}`. Please ensure it's running.\n\n**Error details:** {e}"}
         ]
     except Exception as e:
         st.error(f"An unexpected error occurred while fetching the spec: {e}")
@@ -701,8 +701,8 @@ if selected_version != st.session_state.get('current_spec_version'):
     st.session_state['current_spec_version'] = selected_version
     st.rerun() # Rerun immediately to fetch new spec
 
-# Fetch the selected spec from the service
-st.sidebar.markdown("--- Fetching Spec ---")
+# Fetch the selected spec from the remote agent
+st.sidebar.markdown("--- Fetching Spec from Remote Agent ---")
 st.sidebar.info(f"Attempting to fetch spec: {st.session_state.get('current_spec_version', 'V1')}")
 current_spec = fetch_spec_from_service(st.session_state.get('current_spec_version', 'V1'))
 
