@@ -46,12 +46,27 @@ def render_ui(spec):
             elif comp_type == "text_input":
                 # Get optional 'type' (default is 'default')
                 input_type = item.get("type", "default")
-                st.text_input(
-                    label=item.get("label", ""),
-                    key=key,
-                    help=item.get("help"),
-                    type=input_type # Pass type (e.g., 'default', 'password')
-                )
+                key = item.get("key")
+                
+                # Handle text input with default value from session state
+                if key:
+                    # Store the input value in session state when it changes
+                    new_value = st.text_input(
+                        label=item.get("label", ""),
+                        value=st.session_state[key],
+                        key=f"{key}_input",  # Use a different key for the widget
+                        help=item.get("help"),
+                        type=input_type
+                    )
+                    # Update session state with new value
+                    st.session_state[key] = new_value
+                else:
+                    # For inputs without keys, just render them normally
+                    st.text_input(
+                        label=item.get("label", ""),
+                        help=item.get("help"),
+                        type=input_type
+                    )
             elif comp_type == "button":
                 st.button(label=item.get("label", "Button"), key=key)
             elif comp_type == "chat_message":
@@ -68,9 +83,15 @@ def render_ui(spec):
 
 # --- State Management and Main Rendering Logic ---
 
-# Initialize session state for the current view if it doesn't exist
+# Initialize session state for the current view and form values if they don't exist
 if 'current_view' not in st.session_state:
     st.session_state['current_view'] = 'text' # Default view
+
+# Initialize form field values if they don't exist
+if 'form_first_name' not in st.session_state:
+    st.session_state['form_first_name'] = ''
+if 'form_last_name' not in st.session_state:
+    st.session_state['form_last_name'] = ''
 
 # Determine which spec to render based on the current state
 if st.session_state['current_view'] == 'text':
