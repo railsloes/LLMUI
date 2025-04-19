@@ -1,0 +1,4 @@
+sltvenv/
+.streamlit/
+__pycache__/
+*.pyc
