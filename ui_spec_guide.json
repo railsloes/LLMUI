@@ -1,0 +1,293 @@
+{
+  "//": "STREAMLIT DYNAMIC UI SPECIFICATION GUIDE",
+  "//": "This document provides a comprehensive guide to creating UI specifications for the Streamlit Dynamic UI Core",
+  "//": "Use this as a reference when generating UI specifications for this application",
+  
+  "spec": [
+    {
+      "//": "BASIC TEXT & CONTENT ELEMENTS",
+      
+      "//": "Markdown - Renders formatted text using Markdown syntax",
+      "type": "markdown",
+      "text": "# Heading\n\nRegular text with **bold**, *italic*, and `code`.\n\n* Bullet points\n* More points\n\n1. Numbered list\n2. Second item",
+      "//": "Parameters: text (required) - Markdown formatted text content to display"
+    },
+    
+    {
+      "//": "Divider - Renders a horizontal line to separate content sections",
+      "type": "divider",
+      "//": "No additional parameters needed"
+    },
+    
+    {
+      "//": "HTML - Renders arbitrary HTML content for custom styling",
+      "type": "html",
+      "html_content": "<div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px;'><h3>Custom HTML Content</h3><p>Styled content with <b>HTML formatting</b></p></div>",
+      "height": 150,
+      "width": null,
+      "scrolling": false,
+      "//": "Parameters: html_content (required) - Raw HTML string to render",
+      "//": "           height (optional) - Height in pixels, null for auto",
+      "//": "           width (optional) - Width in pixels, null for auto",
+      "//": "           scrolling (optional) - Whether to enable scrolling"
+    },
+    
+    {
+      "//": "LAYOUT COMPONENTS",
+      
+      "//": "Columns - Creates a multi-column layout with specified relative widths",
+      "type": "columns",
+      "spec": [1, 2, 1],
+      "//": "spec defines relative widths of columns (e.g., [1,2,1] creates 3 columns with middle twice as wide)",
+      "children": [
+        [
+          {
+            "//": "Content for first column",
+            "type": "markdown",
+            "text": "## First Column\nContent in the first column."
+          }
+        ],
+        [
+          {
+            "//": "Content for second column",
+            "type": "markdown",
+            "text": "## Second Column\nContent in the second column."
+          }
+        ],
+        [
+          {
+            "//": "Content for third column",
+            "type": "markdown",
+            "text": "## Third Column\nContent in the third column."
+          }
+        ]
+      ],
+      "//": "Parameters: spec (required) - Array of relative widths for each column",
+      "//": "           children (required) - Array of arrays containing UI specs for each column"
+    },
+    
+    {
+      "//": "FORM COMPONENTS",
+      
+      "//": "Text Input - Single-line text entry field",
+      "type": "text_input",
+      "label": "Username",
+      "key": "username_field",
+      "input_type": "default",
+      "help": "Enter your username (email or handle)",
+      "default": "",
+      "//": "Parameters: label (required) - Display label",
+      "//": "           key (required) - Unique identifier for accessing value in session_state",
+      "//": "           input_type (optional) - 'default' or 'password'",
+      "//": "           help (optional) - Help text shown below the input",
+      "//": "           default (optional) - Default initial value"
+    },
+    
+    {
+      "//": "Text Area - Multi-line text entry field",
+      "type": "text_area",
+      "label": "Comments",
+      "key": "comments_field",
+      "height": 150,
+      "help": "Enter your feedback or comments",
+      "default": "",
+      "//": "Parameters: label (required) - Display label",
+      "//": "           key (required) - Unique identifier for accessing value in session_state",
+      "//": "           height (optional) - Height in pixels (default 100)",
+      "//": "           help (optional) - Help text shown below the input",
+      "//": "           default (optional) - Default initial value"
+    },
+    
+    {
+      "//": "Selectbox - Dropdown menu for selecting from options",
+      "type": "selectbox",
+      "label": "Category",
+      "key": "category_select",
+      "options": ["Option 1", "Option 2", "Option 3"],
+      "default_index": 0,
+      "help": "Select a category from the dropdown",
+      "//": "Parameters: label (required) - Display label",
+      "//": "           key (required) - Unique identifier for accessing value in session_state",
+      "//": "           options (required) - Array of string options to display",
+      "//": "           default_index (optional) - Index of default selected option (0-based)",
+      "//": "           help (optional) - Help text shown below the selectbox"
+    },
+    
+    {
+      "//": "Button - Clickable button to trigger actions",
+      "type": "button",
+      "label": "Submit",
+      "key": "submit_button",
+      "//": "Parameters: label (required) - Text displayed on the button",
+      "//": "           key (required) - Unique identifier for tracking button clicks"
+    },
+    
+    {
+      "//": "INTERACTIVE COMPONENTS",
+      
+      "//": "Data Entry Form - A form with multiple input elements and a submit button",
+      "type": "data_entry_form",
+      "key": "user_profile_form",
+      "title": "User Profile",
+      "submit_label": "Save Profile",
+      "elements": [
+        {
+          "type": "text_input",
+          "label": "Full Name",
+          "key": "full_name"
+        },
+        {
+          "type": "text_input",
+          "label": "Email Address",
+          "key": "email",
+          "input_type": "default"
+        },
+        {
+          "type": "selectbox",
+          "label": "Role",
+          "key": "role",
+          "options": ["User", "Admin", "Editor"]
+        },
+        {
+          "type": "text_area",
+          "label": "Bio",
+          "key": "bio",
+          "height": 120
+        }
+      ],
+      "//": "Parameters: key (required) - Unique identifier for the form",
+      "//": "           title (optional) - Title displayed above the form",
+      "//": "           submit_label (optional) - Text for the submit button",
+      "//": "           elements (required) - Array of UI specs for form fields"
+    },
+    
+    {
+      "//": "Chat Interface - Displays chat messages and provides input field",
+      "type": "chat_interface",
+      "key": "support_chat",
+      "placeholder": "Type your message...",
+      "send_label": "Send",
+      "//": "Initial messages can be provided in the session_state with key: 'support_chat_messages'",
+      "//": "Parameters: key (required) - Unique identifier for the chat",
+      "//": "           placeholder (optional) - Placeholder text for input field",
+      "//": "           send_label (optional) - Text for send button"
+    },
+    
+    {
+      "//": "Chat Message - Individual chat message (typically used within loops)",
+      "type": "chat_message",
+      "role": "user",
+      "text": "Hello, how can I help you?",
+      "avatar": null,
+      "//": "Parameters: role (required) - 'user' or 'assistant'",
+      "//": "           text (required) - Message content",
+      "//": "           avatar (optional) - URL to avatar image"
+    },
+    
+    {
+      "//": "Tabs - Renders a set of tabs, where each tab contains its own defined UI elements.",
+      "type": "tabs",
+      "names": ["Information", "Settings"],
+      "children": [
+        [
+          {
+            "type": "markdown",
+            "text": "### Information Tab\nContent for the first tab."
+          },
+          {
+            "type": "text_input",
+            "label": "Info Field",
+            "key": "info_field"
+          }
+        ],
+        [
+          {
+            "type": "markdown",
+            "text": "### Settings Tab\nConfigure settings here."
+          },
+          {
+            "type": "selectbox",
+            "label": "Theme",
+            "options": ["Light", "Dark"],
+            "key": "theme_select"
+          },
+          {
+            "type": "button",
+            "label": "Save Settings",
+            "key": "save_settings_btn"
+          }
+        ]
+      ],
+      "//": "Parameters: names (required) - A list of strings, where each string is the title for a tab.",
+      "//": "           children (required) - A list of lists. Each inner list contains the UI specifications (dicts) for the elements to be rendered within the corresponding tab (matched by index with 'names').",
+      "//": "Notes: The order of tab names in 'names' corresponds to the order of element lists in 'children'.",
+      "//": "           Each inner list in 'children' can contain any valid UI component specifications.",
+      "//": "           Ensures a structured layout where different sections of the UI can be separated into tabs."
+    }
+  ],
+  
+  "//": "EXAMPLE OF COMBINING COMPONENTS INTO A COMPLETE UI",
+  "example_complete_ui": [
+    {
+      "type": "markdown",
+      "text": "# Dashboard Application\n\nWelcome to the dashboard. Use the features below to manage your account."
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "columns",
+      "spec": [2, 1],
+      "children": [
+        [
+          {
+            "type": "markdown",
+            "text": "## Main Content"
+          },
+          {
+            "type": "data_entry_form",
+            "key": "settings_form",
+            "title": "Account Settings",
+            "submit_label": "Save Changes",
+            "elements": [
+              {
+                "type": "text_input",
+                "label": "Display Name",
+                "key": "display_name"
+              },
+              {
+                "type": "selectbox",
+                "label": "Theme",
+                "key": "theme_preference",
+                "options": ["Light", "Dark", "System Default"]
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "type": "markdown",
+            "text": "## Support"
+          },
+          {
+            "type": "chat_interface",
+            "key": "help_chat",
+            "placeholder": "Ask for help..."
+          }
+        ]
+      ]
+    }
+  ],
+  
+  "//": "TIPS FOR LLMs GENERATING UI SPECS",
+  "tips": [
+    "Always include required parameters for each component type",
+    "Use unique keys for all interactive elements to ensure proper state management",
+    "Nest components appropriately for complex layouts",
+    "Use session_state for persisting values between interactions",
+    "Consider using data_entry_form for grouping related inputs",
+    "Provide clear labels and help text for better user experience",
+    "Use markdown for rich text formatting rather than plain text",
+    "Structure your layout logically with columns and dividers"
+  ]
+}
