@@ -3,6 +3,19 @@ import streamlit.components.v1 as components
 import random
 from abc import ABC, abstractmethod
 import requests
+import json
+import os
+import logging
+import toml
+import time
+from pathlib import Path
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("streamlit_app")
+
+# --- Page Config (Must be first Streamlit command) ---
+st.set_page_config(layout="wide", page_title="Agent UI") # Optional: Use wider layout
 
 # --- Default State Initialization ---
 # Define keys that should be initialized in session state
@@ -48,37 +61,373 @@ for key, default_value in DEFAULT_STATES.items():
     if key not in st.session_state:
         st.session_state[key] = default_value
 
-st.set_page_config(layout="wide") # Optional: Use wider layout
+# --- Add Task ID Handling --- Start
+if 'task_id' not in st.session_state:
+    query_params = st.query_params
+    task_id = query_params.get("task_id")
+    if task_id:
+        st.session_state.task_id = task_id
+        st.info(f"Task ID received: {st.session_state.task_id}") # Optional: display confirmation
+    else:
+        st.session_state.task_id = None # Explicitly set to None if not found
+# --- Add Task ID Handling --- End
+
+# --- Authentication Logic (Sprint 4, Task 4) ---
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = None
+
+# Debug auth configuration in secrets.toml
+try:
+    secrets_file = Path("/Users/federicolopez/LLMUI/LLMUI/poc_streamlit_core/.streamlit/secrets.toml")
+    if secrets_file.exists():
+        logger.info("Found secrets.toml file")
+        secrets_content = toml.loads(secrets_file.read_text())
+        
+        # Check auth config structure
+        if 'auth' in secrets_content:
+            logger.info("Found 'auth' section in secrets.toml")
+            
+            if 'providers' in secrets_content['auth']:
+                logger.info("Found 'providers' section in auth config")
+                
+                if 'google' in secrets_content['auth']['providers']:
+                    google_config = secrets_content['auth']['providers']['google']
+                    logger.info(f"Google provider config keys: {list(google_config.keys())}")
+                    
+                    # Check required fields
+                    required_fields = ['client_id', 'client_secret']
+                    missing_fields = [field for field in required_fields if field not in google_config]
+                    
+                    if missing_fields:
+                        logger.error(f"Missing required fields for Google provider: {missing_fields}")
+                    else:
+                        logger.info("All required fields for Google provider are present")
+                else:
+                    logger.error("Google provider missing from auth.providers")
+            else:
+                logger.error("'providers' section missing from auth config")
+        else:
+            logger.error("'auth' section missing from secrets.toml")
+    else:
+        logger.error("secrets.toml file not found")
+        
+    # Log streamlit config directory
+    logger.info(f"Streamlit config directory detected: {os.path.expanduser('~/.streamlit')}")
+    try:
+        from streamlit.runtime.secrets import get_secrets_dict
+        app_secrets = get_secrets_dict()
+        logger.info(f"App secrets keys: {list(app_secrets.keys())}")
+        if 'auth' in app_secrets:
+            logger.info(f"Auth config from app_secrets: {list(app_secrets['auth'].keys())}")
+    except Exception as e:
+        logger.error(f"Error accessing app secrets: {e}")
+        
+except Exception as e:
+    logger.error(f"Error checking secrets.toml: {e}")
+
+# Log the contents of st.secrets for debugging
+try:
+    logger.info(f"Contents of st.secrets: {st.secrets.to_dict()}")
+except Exception as secret_log_e:
+    logger.error(f"Could not log st.secrets: {secret_log_e}")
+
+# --- Authentication and User State Handling (Sprint 4, Task 5) ---
+if st.experimental_user.is_logged_in:
+    # User is logged in - extract and store user info
+    user_info = {
+        "email": getattr(st.experimental_user, "email", None),
+        "name": getattr(st.experimental_user, "name", None),
+        "id": getattr(st.experimental_user, "id", None)
+    }
+    
+    # Store in session state for use throughout the app
+    st.session_state.user_info = user_info
+    
+    # Determine display name (prefer email, fallback to name)
+    display_name = user_info["email"] or user_info["name"] or "User"
+    
+    # Display welcome message and user info
+    st.title(f"Welcome, {display_name}!")
+    st.sidebar.header("Account")
+    st.sidebar.write(f"Signed in as: {display_name}")
+    
+    # Logout button implementation (Sprint 4, Task 6)
+    if st.sidebar.button("Logout", key="logout_btn"):
+        # Clear relevant session state variables
+        keys_to_clear = ["user_info", "current_ui_spec", "task_id"] # Add others as needed
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # Use Streamlit's built-in logout function
+        st.logout()
+        
+else:
+    # User is not logged in - show login UI
+    st.title("Welcome to Agent UI")
+    st.sidebar.header("Login")
+    
+    # Google login button
+    if st.sidebar.button("Login with Google"):
+        try:
+            logger.info("Attempting to login with Google provider")
+            st.login("google")
+        except Exception as e:
+            error_msg = f"Could not initiate Google login: {e}"
+            logger.error(error_msg)
+            st.error(error_msg)
+    
+    # Microsoft login button (commented out until credentials are set up)
+    # if st.sidebar.button("Login with Microsoft"):
+    #     try:
+    #         logger.info("Attempting to login with Microsoft provider")
+    #         st.login("microsoft")
+    #     except Exception as e:
+    #         error_msg = f"Could not initiate Microsoft login: {e}"
+    #         logger.error(error_msg)
+    #         st.error(error_msg)
+    
+    # Display message and stop if not logged in
+    st.info("Please log in using one of the options in the sidebar to continue.")
+    st.stop()
+
+# --- Main App Logic (only runs if logged in due to st.stop() above) ---
 st.title("PoC: Streamlit Dynamic UI Core")
 st.markdown("Initial application structure.")
 
-# --- Define Remote Agent Simulation URL ---
-REMOTE_AGENT_URL = "http://localhost:5001/get_spec"
+# --- Define Agent Simulator URLs ---
+SIMULATOR_BASE_URL = "http://localhost:5001"
+REMOTE_AGENT_URL = f"{SIMULATOR_BASE_URL}/get_spec"
+# Note: This connects to the agent_simulator.py Flask app
 
-# --- Function to Fetch Spec from Service ---
-@st.cache_data(ttl=10) # Cache for 10 seconds to avoid spamming the service
-def fetch_spec_from_service(version: str):
-    """Fetches the UI specification from the remote agent simulation."""
-    try:
-        url = f"{REMOTE_AGENT_URL}/{version}"
-        response = requests.get(url, timeout=5) # Added timeout
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
-        spec = response.json()
-        print(f"Successfully fetched spec for version {version} from {url}")
-        return spec
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching spec from remote agent at {url}: {e}")
-        print(f"Error fetching spec from remote agent at {url}: {e}")
-        # Return a minimal fallback spec or an empty list
+# --- API Interaction ---
+def fetch_spec(agent_url, version):
+    """Fetches the UI specification from the remote agent service.
+    
+    Args:
+        agent_url (str): Base URL for the agent simulator API
+        version (str): Version of the UI spec to fetch (e.g., 'V1', 'V2')
+        
+    Returns:
+        list: The UI specification as a list of components, or a fallback error UI
+    """
+    # Add task_id to the request if available
+    params = {}
+    if st.session_state.get("task_id"):
+        params["task_id"] = st.session_state.get("task_id")
+    
+    # SPRINT 5: Add user_id (email) to the request if available
+    if st.session_state.get("user_info") and st.session_state.user_info.get("email"):
+        params["user_id"] = st.session_state.user_info.get("email")
+    
+    # Construct the URL
+    url = f"{agent_url}/{version}" if version else agent_url
+    
+    # Append parameters to URL
+    if params:
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        url += f"?{query_string}"
+        logger.info(f"Fetching spec from {url} with params: {params}") 
+    else:
+        logger.info(f"Fetching spec from {url} (no params)")
+
+    # Use a spinner to indicate loading
+    with st.spinner(f"Loading UI specification (version {version})..."):
+        # Implement retry logic
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempt {attempt+1}/{max_retries} to fetch spec from {url}")
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                spec = response.json()
+                
+                # Log success
+                logger.info(f"Successfully fetched spec for version {version} from {url}")
+                logger.debug(f"Received spec: {spec}")
+                
+                # Reset any error-related session state
+                if 'api_error' in st.session_state:
+                    del st.session_state['api_error']
+                    
+                return spec
+                
+            except requests.exceptions.Timeout:
+                error_msg = "Connection timed out while reaching the agent simulator."
+                logger.warning(f"Timeout error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    
+            except requests.exceptions.ConnectionError:
+                error_msg = "Could not connect to the agent simulator. Is it running?"
+                logger.warning(f"Connection error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Error communicating with the agent simulator: {str(e)}"
+                logger.error(f"Request error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    
+            except json.JSONDecodeError:
+                error_msg = "Received invalid response from the agent simulator."
+                logger.error(f"JSON decode error on attempt {attempt+1}: {error_msg}")
+                break  # Don't retry JSON errors as they're likely not transient
+                
+            except Exception as e:
+                error_msg = f"An unexpected error occurred: {str(e)}"
+                logger.error(f"Unexpected error on attempt {attempt+1}: {error_msg}")
+                break  # Don't retry unexpected errors
+        
+        # If we've exhausted retries or hit a non-retryable error
+        # Store error in session state for reference
+        st.session_state['api_error'] = error_msg
+        
+        # Show user-friendly error message
+        st.error(error_msg)
+        
+        # Return a fallback UI with helpful error information
         return [
-            {"type": "markdown", "text": f"## Error\n\nCould not connect to the remote agent simulation at `{url}`. Please ensure it's running.\n\n**Error details:** {e}"}
+            {"type": "markdown", "text": "## Connection Error"},
+            {"type": "markdown", "text": f"**{error_msg}**"},
+            {"type": "markdown", "text": "### Troubleshooting Steps:"},
+            {"type": "markdown", "text": "1. Ensure the agent simulator is running on port 5001\n2. Check network connectivity\n3. Try refreshing the page\n4. Contact support if the issue persists"}
         ]
-    except Exception as e:
-        st.error(f"An unexpected error occurred while fetching the spec: {e}")
-        print(f"An unexpected error occurred while fetching the spec: {e}")
-        return [
-            {"type": "markdown", "text": f"## Error\n\nAn unexpected error occurred: {e}"}
-        ]
+
+# --- Agent Simulator API Call (Sprint 3, Task 6) ---
+def call_agent_simulator(action_key, data_payload, task_id, user_id=None):
+    """Sends interaction data to the simulator and returns the new UI spec.
+    
+    Args:
+        action_key (str): The key of the action that was triggered
+        data_payload (dict): The collected data from the UI
+        task_id (str): The task ID from the session state
+        user_id (str, optional): The user ID from the authenticated user
+        
+    Returns:
+        dict or None: The parsed JSON response from the simulator, or None on error
+    """
+    url = f"{SIMULATOR_BASE_URL}/interact"
+    
+    # Prepare the payload
+    payload = {
+        "action_key": action_key,
+        "data": data_payload,
+        "task_id": task_id,
+        "user_id": user_id if user_id else "anonymous_poc_user"  # Use authenticated user ID if available
+    }
+    headers = {"Content-Type": "application/json"}
+    
+    # Store the interaction details in session state for debugging/recovery
+    st.session_state['last_interaction'] = {
+        'timestamp': time.time(),
+        'action_key': action_key,
+        'data_payload': data_payload,
+        'task_id': task_id,
+        'user_id': user_id
+    }
+    
+    # Log the interaction attempt
+    logger.info(f"Sending interaction to agent simulator: action_key={action_key}, task_id={task_id}, user_id={user_id}")
+    logger.debug(f"Full payload: {json.dumps(payload)}")
+    logger.info(f"Target URL: {url}")
+
+    # Use a spinner to indicate loading
+    with st.spinner(f"Processing {action_key} action..."):
+        # Implement retry logic
+        max_retries = 2  # Fewer retries for interactive calls
+        retry_delay = 0.5  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempt {attempt+1}/{max_retries} to send interaction to {url}")
+                
+                response = requests.post(url, headers=headers, json=payload, timeout=10)
+                response.raise_for_status()  # Check for HTTP errors
+                
+                new_ui_spec_response = response.json()  # Expecting JSON like {"status": "success", "view_config": [...]}
+                
+                # Log success
+                logger.info(f"Successfully received response from simulator for action {action_key}")
+                logger.debug(f"Response: {json.dumps(new_ui_spec_response)}")
+                
+                # Store successful response in session state
+                st.session_state['last_successful_interaction'] = {
+                    'timestamp': time.time(),
+                    'action_key': action_key,
+                    'response': new_ui_spec_response
+                }
+                
+                # Clear any error state
+                if 'interaction_error' in st.session_state:
+                    del st.session_state['interaction_error']
+                    
+                return new_ui_spec_response
+                
+            except requests.exceptions.Timeout:
+                error_msg = "The request to the agent simulator timed out."
+                logger.warning(f"Timeout error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    
+            except requests.exceptions.ConnectionError:
+                error_msg = "Could not connect to the agent simulator. Please ensure it's running."
+                logger.warning(f"Connection error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Error communicating with the agent simulator: {str(e)}"
+                logger.error(f"Request error on attempt {attempt+1}: {error_msg}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    
+            except json.JSONDecodeError:
+                error_msg = "Received invalid response format from the agent simulator."
+                logger.error(f"JSON decode error on attempt {attempt+1}: {error_msg}")
+                break  # Don't retry JSON errors
+                
+            except Exception as e:
+                error_msg = f"An unexpected error occurred: {str(e)}"
+                logger.error(f"Unexpected error on attempt {attempt+1}: {error_msg}")
+                break  # Don't retry unexpected errors
+        
+        # If we've exhausted retries or hit a non-retryable error
+        # Store error in session state
+        st.session_state['interaction_error'] = {
+            'timestamp': time.time(),
+            'action_key': action_key,
+            'error': error_msg
+        }
+        
+        # Show user-friendly error message
+        st.error(f"Action could not be processed: {error_msg}")
+        
+        # Provide a fallback response that indicates the error
+        return {
+            "status": "error",
+            "message": error_msg,
+            "view_config": [
+                {"type": "markdown", "text": "## Action Processing Error"},
+                {"type": "markdown", "text": f"**{error_msg}**"},
+                {"type": "markdown", "text": "Your action could not be processed. Please try again or refresh the page."}
+            ]
+        }
 
 # --- Renderer Classes ---
 
@@ -456,6 +805,10 @@ class DataEntryFormRenderer(BaseRenderer):
             with st.expander("Submitted Form Values", expanded=True):
                 submitted_values = {k: st.session_state.get(k, "") for k in form_field_keys}
                 st.json(submitted_values)
+            
+            # Add debug messages for interaction detection (Sprint 3, Task 3)
+            st.write(f"DEBUG: Detected form submission for form: {form_key}")  # Debug
+            st.write(f"DEBUG: Action '{form_key}_form_submit' triggered. Proceeding...")  # Debug
                 
             print(f"Form '{form_key}' submitted with data: {st.session_state}")
             
@@ -577,6 +930,9 @@ def render_ui(spec_list):
         component_type = item.get("type")
         key = item.get("key")
 
+        # Debug output for each component
+        print(f"DEBUG - Rendering component: type={component_type}, key={key}")
+
         RendererClass = RENDERER_MAP.get(component_type)
 
         if RendererClass:
@@ -680,39 +1036,126 @@ if process_navigation():
 st.sidebar.title("UI Specification Selector")
 
 # Define available spec versions
-spec_versions = ('V1', 'V2', 'V3', 'V4') # Added V4
+# SPRINT 5: Added V6 for email-based access control demo
+version_options = ["V1", "V2", "V3", "V4", "V5", "V6"]
+
+# Add a note about V6 for email-based access control
+if st.session_state.get('user_info'):
+    st.sidebar.info("**V6** demonstrates email-based access control. Try logging in with:\n- feloes@gmail.com (Admin)\n- fede@urobora.com (Regular User)")
 
 # Determine the index for the radio button default value
 default_version = st.session_state.get('current_spec_version', 'V1')
 try:
-    default_index = spec_versions.index(default_version)
+    default_index = version_options.index(default_version)
 except ValueError:
-    default_index = 0 # Default to the first option if the saved version is somehow invalid
+    default_index = 0  # Default to the first option if the saved version is invalid
 
 selected_version = st.sidebar.radio(
     "Select Spec Version to Fetch:", 
-    spec_versions, 
+    version_options, 
     key='spec_selector',
-    index=default_index # Keep selection sync'd
+    index=default_index  # Keep selection sync'd
 )
 
-# Update session state if radio button changed
+# Update session state if version changed
 if selected_version != st.session_state.get('current_spec_version'):
     st.session_state['current_spec_version'] = selected_version
-    st.rerun() # Rerun immediately to fetch new spec
+    st.rerun()  # Force a rerun to fetch the new spec
 
 # Fetch the selected spec from the remote agent
 st.sidebar.markdown("--- Fetching Spec from Remote Agent ---")
 st.sidebar.info(f"Attempting to fetch spec: {st.session_state.get('current_spec_version', 'V1')}")
-current_spec = fetch_spec_from_service(st.session_state.get('current_spec_version', 'V1'))
+current_spec = fetch_spec(REMOTE_AGENT_URL, st.session_state.get('current_spec_version', 'V1'))
 
 # --- Display Content Area ---
-st.header(f"Dynamic UI Area (Spec: {st.session_state.get('current_spec_version', 'V1')})")
+st.header(f"Dynamic UI Area (Spec: {st.session_state.get('current_spec_version', 'V1')})") 
 
 if current_spec:
+    # Store the current spec in session state for interaction detection
+    st.session_state['current_ui_spec'] = current_spec
     render_ui(current_spec)
 else:
     st.error("No UI specification loaded. Check service connection.")
+
+# --- Interaction Detection (Sprint 3, Task 3) ---
+triggered_action_key = None
+spec_rendered = st.session_state.get('current_ui_spec')  # Get the spec that was just rendered
+
+# First, check for form submissions
+if spec_rendered and isinstance(spec_rendered, list):
+    for item in spec_rendered:
+        if not isinstance(item, dict): 
+            continue
+
+        comp_type = item.get("type")
+        key = item.get("key")
+
+        if not key: 
+            continue  # Skip elements without keys
+
+        # Check for form submissions
+        if comp_type == "data_entry_form":
+            form_submit_key = f"{key}_submitted"
+            if st.session_state.get(form_submit_key):  # Check if form was submitted
+                triggered_action_key = f"{key}_form_submit"
+                st.write(f"DEBUG: Detected form submission for form: {key}")  # Debug
+                # Note: We don't break here because the DataEntryFormRenderer already resets the state
+
+        # Check for button clicks
+        elif comp_type == "button":
+            click_state_key = f"{key}_clicked"
+            if st.session_state.get(click_state_key):  # Check if button click state is True
+                triggered_action_key = key
+                st.write(f"DEBUG: Detected button click for key: {key}")  # Debug
+                
+                # Reset button state immediately (Sprint 3, Task 4)
+                st.session_state[click_state_key] = False
+                print(f"Reset button state for '{click_state_key}' to False")
+                
+                break  # Process only the first detected action
+
+        # Add more elif checks for other interactive types if needed
+
+# --- Action Processing and Data Collection (Sprint 3, Task 5) ---
+if triggered_action_key:
+    st.write(f"DEBUG: Action '{triggered_action_key}' triggered. Collecting data...")
+    data_payload = {}
+    spec_rendered = st.session_state.get('current_ui_spec')
+
+    # Define which input types to collect data from
+    INPUT_COMPONENT_TYPES = ["text_input", "selectbox", "text_area"] # Extend as needed
+
+    if spec_rendered and isinstance(spec_rendered, list):
+        for item in spec_rendered:
+             if not isinstance(item, dict): continue
+             comp_type = item.get("type")
+             key = item.get("key")
+
+             if key and comp_type in INPUT_COMPONENT_TYPES:
+                 if key in st.session_state:
+                     data_payload[key] = st.session_state[key]
+                 else:
+                     # Input might not have been rendered or state lost
+                     data_payload[key] = None # Or log warning
+                     st.warning(f"Could not find key '{key}' in session state during data collection.")
+
+    st.write(f"DEBUG: Data collected: {data_payload}")
+    
+    # Call the Agent Simulator with the collected data (Sprint 3, Task 6)
+    st.write(f"DEBUG: Calling simulator for action '{triggered_action_key}'")
+    # Add user_id to the call if available
+    user_id = None
+    if st.session_state.get('user_info'):
+        user_id = st.session_state.user_info.get('email')
+    api_response = call_agent_simulator(triggered_action_key, data_payload, st.session_state.get("task_id"), user_id)
+
+    if api_response and api_response.get("status") == "success":
+         new_spec = api_response.get("view_config")
+         st.session_state.current_ui_spec = new_spec
+         st.write(f"DEBUG: Received new UI spec from simulator. Will update on next rerun.")
+         # Optional: st.rerun() if immediate refresh needed
+    elif api_response: # Handle structured errors if simulator sends them
+         st.error(f"Agent Simulator Error: {api_response.get('message', 'Unknown error')}")
 
 # --- Debug Area ---
 st.markdown("---")
