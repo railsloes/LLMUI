@@ -1,0 +1,141 @@
+openapi: 3.0.0
+info:
+  title: Agent UI Interaction API (MVP V1.0)
+  version: 1.0.0
+  description: API for Streamlit frontend to interact with the Agent Logic (Simulator for MVP).
+servers:
+  - url: http://localhost:5001 # Simulator URL for MVP testing
+    description: Local Agent Simulator
+paths:
+  # Definition for GET /get_spec
+  /get_spec:
+    get:
+      summary: Get initial UI specification
+      description: Returns a random UI specification if no version is specified.
+      responses:
+        '200':
+          description: Successful response with UI view configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        # Add other potential responses like 403, 500 later
+  
+  # Definition for GET /get_spec/{version}
+  /get_spec/{version}:
+    get:
+      summary: Get specific UI specification by version
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Version of the UI specification to retrieve (e.g., V1, V2, V3, V4).
+        - name: task_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional ID for a specific task context.
+      responses:
+        '200':
+          description: Successful response with UI view configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Specification version not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Definition for POST /interact
+  /interact:
+    post:
+      summary: Send user interaction and get next UI spec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InteractionRequest'
+      responses:
+        '200':
+          description: Successful interaction, returns next UI view configuration or status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Bad request, missing required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    InteractionRequest:
+      type: object
+      properties:
+        action_key:
+          type: string
+          description: The unique key of the element that triggered the interaction.
+        data:
+          type: object
+          description: Key-value pairs of data collected from input elements related to the action.
+          additionalProperties: true
+        task_id:
+          type: string
+          nullable: true
+          description: The context task ID, if applicable.
+        user_id:
+          type: string
+          description: Identifier of the user performing the action.
+      required:
+        - action_key
+        - data
+
+    ApiResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, error, access_denied]
+          description: Outcome of the request.
+        view_config:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+          description: The UI specification to render next (only on success).
+        message:
+          type: string
+          nullable: true
+          description: Optional message, especially for error or access denied status.
+      required:
+        - status
+    
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+          description: Error status.
+        message:
+          type: string
+          description: Error message describing what went wrong.
+      required:
+        - status
+        - message
